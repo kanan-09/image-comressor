@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Resizer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- JSZip CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --theme-main-color: #007bff;
+            --theme-main-color-dark: #0056b3;
+            --theme-accent: #1abc9c;
+            --theme-font-color: #222;
+            --theme-bg: #f7f8fa;
+            --theme-shadow: 0 4px 24px rgba(0,0,0,0.07);
+            --theme-radius: 18px;
+        }
+        body {
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            /* Новый фон */
+            background: url('https://cejs.eu/files/images/obsah/about_us/map.png') no-repeat center center fixed;
+            background-size: cover;
+            display: flex;
+            flex-direction: column;
+            min-width: 320px;
+        }
+        /* Вращающаяся стрелка и логотип справа вверху */
+        .cejs-logo-block {
+            position: fixed;
+            top: 32px;
+            right: 48px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            pointer-events: none;
+        }
+        .cejs-spin-arrow {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cejs-spin-arrow .arrow-svg {
+            position: absolute;
+            top: 0; left: 0;
+            width: 160px;
+            height: 160px;
+            animation: cejs-spin-reverse 2.5s linear infinite;
+            z-index: 1;
+            pointer-events: none;
+        }
+        @keyframes cejs-spin-reverse {
+            100% { transform: rotate(-360deg);}
+        }
+        .cejs-spin-arrow .logo-img {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            width: 76px;
+            height: 76px;
+            object-fit: contain;
+            background: none;
+            border: none;
+            box-shadow: none;
+            pointer-events: none;
+        }
+        @media (max-width: 700px) {
+            .cejs-logo-block {
+                top: 10px;
+                right: 10px;
+            }
+            .cejs-spin-arrow, .cejs-spin-arrow .arrow-svg {
+                width: 90px;
+                height: 90px;
+            }
+            .cejs-spin-arrow .logo-img {
+                width: 44px;
+                height: 44px;
+            }
+        }
+        .main-layout {
+            display: flex;
+            flex-direction: row;
+            min-height: 100vh;
+            width: 100vw;
+            justify-content: center;
+            align-items: center;
+        }
+        /* Логотип и вращающаяся стрелка справа вверху */
+        .logo-wrapper {
+            position: fixed;
+            top: 32px;
+            right: 48px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            pointer-events: none;
+            /* адаптивность */
+        }
+        .logo-spin-arrow {
+            position: relative;
+            width: 72px;
+            height: 72px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .logo-spin-arrow .arrow-svg {
+            position: absolute;
+            top: 0; left: 0;
+            width: 72px;
+            height: 72px;
+            animation: spin-arrow 2.5s linear infinite;
+            z-index: 1;
+        }
+        @keyframes spin-arrow {
+            100% { transform: rotate(360deg);}
+        }
+        .logo-spin-arrow .logo-img {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 38px;
+            height: 38px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            background: rgba(255,255,255,0.95);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+            z-index: 2;
+            object-fit: contain;
+            border: 2px solid var(--theme-main-color);
+        }
+        /* Контейнер основного контента */
+        .container {
+            background: rgba(255,255,255,0.97);
+            border-radius: var(--theme-radius);
+            box-shadow: var(--theme-shadow);
+            padding: 2.5rem 2rem 2rem 2rem;
+            max-width: 700px;
+            width: 100%;
+            margin: 48px 0 48px 48px;
+            align-self: flex-start;
+            transition: box-shadow 0.3s, background 0.3s;
+            /* Динамическая ширина и высота по содержимому */
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: flex-start;
+            width: auto;
+            min-width: 320px;
+            max-width: 100vw;
+            height: auto;
+            min-height: 220px;
+            box-sizing: border-box;
+        }
+        .container > h1 {
+            margin-bottom: 1.2rem;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 1.2rem;
+            color: var(--theme-font-color);
+            font-weight: 600;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        }
+        .drop-area {
+            border: 2px dashed #b0b8c1;
+            border-radius: 14px;
+            background: #f3f6fa;
+            color: #7a869a;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+            margin-bottom: 1.5rem;
+            position: relative;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            max-width: 100%;
+            width: auto;
+            min-width: 320px;
+            /* динамическая высота */
+            height: auto;
+        }
+        .drop-area.dragover {
+            border-color: var(--theme-main-color);
+            background: #eaf4ff;
+            color: var(--theme-main-color);
+            box-shadow: 0 6px 30px rgba(0,123,255,0.10);
+        }
+        .drop-area input[type="file"] {
+            display: none;
+        }
+        .drop-text {
+            margin-bottom: 1.2rem;
+            font-weight: 500;
+            font-size: 1.15rem;
+            color: #7a869a;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .thumbs-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            width: 100%;
+            box-sizing: border-box;
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+        .thumb-item {
+            flex: 0 0 200px;
+            position: relative;
+            min-height: 170px;
+            border-radius: 10px;
+            background: #fff;
+            border: 1px solid #e1e4ea;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            overflow: hidden;
+            padding: 8px 4px 8px 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            transition: box-shadow 0.2s;
+        }
+        .thumb-item:hover {
+            box-shadow: 0 6px 18px rgba(0,123,255,0.13);
+        }
+        .thumb-item img {
+            width: 90px;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 8px;
+            background: #f8fafc;
+            margin-bottom: 7px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .thumb-item .remove-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: #e74c3c;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+            transition: background 0.2s;
+        }
+        .thumb-item .remove-btn:hover {
+            background: #c0392b;
+        }
+        .thumb-filename {
+            font-size: 0.97rem;
+            color: #444;
+            margin-bottom: 2px;
+            word-break: break-all;
+            text-align: center;
+            max-width: 100px;
+        }
+        .thumb-size {
+            font-size: 0.93rem;
+            color: #888;
+            background: #f8fafc;
+            border-radius: 5px;
+            padding: 1px 4px;
+            display: inline-block;
+            margin-bottom: 2px;
+        }
+        .thumb-size.compressed {
+            color: var(--theme-accent);
+            background: #eafaf6;
+        }
+        .thumb-actions {
+            margin-top: 4px;
+        }
+        .controls {
+            margin-bottom: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1.2rem;
+            flex-wrap: wrap;
+        }
+        .controls label {
+            font-size: 1.05rem;
+            color: #444;
+        }
+        .controls select {
+            font-size: 1.05rem;
+            padding: 0.3rem 0.7rem;
+            border-radius: 6px;
+            border: 1px solid #b0b8c1;
+            background: #fff;
+            transition: border 0.2s;
+        }
+        .controls select:focus {
+            border: 1.5px solid var(--theme-main-color);
+            outline: none;
+        }
+        .compress-btn, .download-btn {
+            display: inline-block;
+            background: linear-gradient(90deg, var(--theme-main-color) 60%, var(--theme-main-color-dark) 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 0.85rem 2.2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1.2rem;
+            margin-right: 0.7rem;
+            box-shadow: 0 2px 8px rgba(0,123,255,0.08);
+            transition: transform 0.13s, box-shadow 0.13s, background 0.2s;
+            text-decoration: none;
+        }
+        .compress-btn:hover, .compress-btn:focus,
+        .download-btn:hover, .download-btn:focus {
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 6px 18px rgba(0,123,255,0.13);
+            background: linear-gradient(90deg, var(--theme-main-color-dark) 60%, var(--theme-main-color) 100%);
+        }
+        .progress-section {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto 1.2rem auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .progress-bar-bg {
+            width: 100%;
+            height: 18px;
+            background: #e1e4ea;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff 60%, #1abc9c 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .progress-labels {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.05rem;
+            color: #444;
+        }
+        @media (max-width: 3000px) {
+    .main-layout {
+        flex-direction: column-reverse;
+        align-items: center;
+    }
+    .container {
+        margin: 48px auto;
+        align-self: center;
+    }
+    .logo-wrapper {
+        top: 18px;
+        right: 18px;
+    }
+
+    .thumbs-list {
+    display: flex;
+    flex-wrap: wrap; /* разрешаем перенос строк */
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    max-width: 1200px; /* можно адаптировать */
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+.thumb-item {
+    flex: 0 0 calc(20% - 12px); /* каждый элемент занимает 20% ширины минус отступ */
+    min-width: 120px;
+    max-width: 180px;
+    height: auto;
+    padding: 8px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    }
+}
+
+@media (max-width: 3000px) {
+    .thumbs-list {
+        gap: 10px;
+    }
+    .thumb-item {
+        width: 90px;
+        min-height: 150px;
+        padding: 5px 2px 5px 2px;
+    }
+    .thumb-item img {
+        width: 70px;
+        height: 70px;
+    }
+    .container {
+        padding: 1.2rem 0.5rem 1.2rem 0.5rem;
+        margin: 32px auto;
+    }
+}
+
+@media (max-width: 600px) {
+    .container {
+        padding: 1.2rem 0.2rem 1.2rem 0.2rem;
+        max-width: 99vw;
+        margin: 16px auto;
+    }
+    .drop-area {
+        padding: 1.2rem 0.2rem 0.7rem 0.2rem;
+        font-size: 1rem;
+        min-height: 120px;
+    }
+    .thumbs-list {
+        gap: 8px;
+    }
+    .thumb-item {
+        width: 80px;
+        min-height: 120px;
+    }
+    .thumb-item img {
+        width: 55px;
+        height: 55px;
+    }
+    .logo-wrapper {
+        top: 8px;
+        right: 8px;
+    }
+    .logo-spin-arrow {
+        width: 48px;
+        height: 48px;
+    }
+    .logo-spin-arrow .arrow-svg {
+        width: 48px;
+        height: 48px;
+    }
+    .logo-spin-arrow .logo-img {
+        width: 26px;
+        height: 26px;
+    }
+}
+
+    </style>
+</head>
+<body>
+    <!-- Вращающаяся стрелка и логотип справа сверху -->
+    <div class="cejs-logo-block">
+        <div class="cejs-spin-arrow">
+            <img class="arrow-svg" src="https://cejs.eu/files/images/obsah/about_us/circle.svg" alt="Вращающаяся стрелка">
+            <img class="logo-img" src="https://cejs.eu/files/images/obsah/about_us/cejs__logo--about-us.webp" alt="Логотип CEJS">
+        </div>
+    </div>
+    <div class="main-layout">
+        <div class="container">
+            <h1>Wybierz zdjęcia :)</h1>
+            <div class="drop-area" id="dropArea">
+                <span class="drop-text"><b>Przeciągnij i upuść obraz lub kliknij ;)</b></span>
+                <input type="file" id="fileInput" accept=".jpg,.jpeg,.png" multiple>
+                <div class="thumbs-list" id="thumbsList"></div>
+            </div>
+            <!-- Прогресс-бар и счетчики -->
+            <div class="progress-section" id="progressSection" style="display:none;">
+                <div class="progress-labels">
+                    <span id="filesSelectedLabel">Wybrane pliki: 0</span>
+                    <span id="filesProcessedLabel">Przetworzono: 0</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressBarFill"></div>
+                </div>
+            </div>
+            <div class="controls">
+                <label for="maxPxSelect">Maks. rozmiar (px):</label>
+                <select id="maxPxSelect">
+                    <option value="1600">1600x1600</option>
+                    <option value="1280">1280x1280</option>
+                    <option value="1024">1024x1024</option>
+                    <option value="768">768x768</option>
+                    <option value="640">640x640</option>
+                    <option value="480">480x480</option>
+                    <option value="400">400x400</option>
+                </select>
+                <label for="maxKbSelect">Maks. rozmiar pliku</label>
+                <select id="maxKbSelect">
+                    <option value="100">100 kb</option>
+                    <option value="200">200 kb</option>
+                    <option value="300">300 kb</option>
+                    <option value="400">400 kb</option>
+                    <option value="500">500 kb</option>
+                    <option value="600">600 kb</option>
+                    <option value="700">700 kb</option>
+                    <option value="800">800 kb</option>
+                    <option value="900">900 kb</option>
+                    <option value="1000">1000 kb</option>
+                </select>
+            </div>
+            <button class="compress-btn" id="compressBtn">Skompresuj</button>
+            <button class="download-btn" id="downloadBtn" style="display:none;">Pobierz</button>
+        </div>
+    </div>
+    <script>
+        // --- State ---
+        let files = [];
+        let thumbs = []; // {file, url, name, origSize, compressedUrl, compressedSize, compressedBlob}
+
+        // --- Elements ---
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const thumbsList = document.getElementById('thumbsList');
+        const maxPxSelect = document.getElementById('maxPxSelect');
+        const maxKbSelect = document.getElementById('maxKbSelect');
+        const compressBtn = document.getElementById('compressBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // --- Utils ---
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' Б';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
+            return (bytes / 1024 / 1024).toFixed(2) + ' МБ';
+        }
+
+        function getResizeDims(width, height, maxPx) {
+            let ratio = Math.min(maxPx / width, maxPx / height, 1);
+            return {
+                width: Math.round(width * ratio),
+                height: Math.round(height * ratio)
+            };
+        }
+
+        // --- Image Processing ---
+        async function compressToTarget(file, maxPx, maxKB) {
+            // Точный лимит: [target-1KB, target+1KB]
+            const minBytes = (maxKB - 1) * 1024;
+            const maxBytes = (maxKB + 1) * 1024;
+            let minQuality = 0.1;
+            let maxQuality = 0.95;
+            let qualityStep = 0.05;
+            let minDim = 200; // минимальное разрешение, чтобы не сжимать бесконечно
+
+            // Получить размеры для текущего ограничения
+            function getDims(w, h, maxPx) {
+                let ratio = Math.min(maxPx / w, maxPx / h, 1);
+                return {
+                    width: Math.round(w * ratio),
+                    height: Math.round(h * ratio)
+                };
+            }
+
+            // Сжать с заданным качеством и разрешением
+            function tryCompress(img, width, height, quality) {
+                return new Promise(res => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob(blob => {
+                        res({blob, size: blob.size});
+                    }, 'image/jpeg', quality);
+                });
+            }
+
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = async function() {
+                    let w = img.width, h = img.height;
+                    let dims = getDims(w, h, maxPx);
+                    let width = dims.width, height = dims.height;
+                    let found = null;
+
+                    while (width >= minDim && height >= minDim) {
+                        // Перебор качеств от высокого к низкому
+                        let best = null;
+                        for (let q = maxQuality; q >= minQuality; q -= qualityStep) {
+                            let {blob, size} = await tryCompress(img, width, height, q);
+                            if (size <= maxBytes && size >= minBytes) {
+                                // В диапазоне — сразу возвращаем
+                                resolve({
+                                    url: URL.createObjectURL(blob),
+                                    size,
+                                    blob
+                                });
+                                return;
+                            }
+                            if (size < minBytes) {
+                                // Слишком маленький — запоминаем как best, но ищем лучше
+                                if (!best || size > best.size) best = {blob, size};
+                            }
+                        }
+                        // Если не нашли в диапазоне, но есть best (меньше лимита) — возвращаем best
+                        if (best) {
+                            resolve({
+                                url: URL.createObjectURL(best.blob),
+                                size: best.size,
+                                blob: best.blob
+                            });
+                            return;
+                        }
+                        // Если всё ещё больше лимита — уменьшаем разрешение и повторяем
+                        width = Math.round(width * 0.9);
+                        height = Math.round(height * 0.9);
+                    }
+                    // Если не удалось — возвращаем минимально возможное
+                    let {blob, size} = await tryCompress(img, width, height, minQuality);
+                    resolve({
+                        url: URL.createObjectURL(blob),
+                        size,
+                        blob
+                    });
+                };
+                img.onerror = reject;
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        // --- UI Update ---
+        function renderThumbs(showCompressed = false) {
+            thumbsList.innerHTML = '';
+            thumbs.forEach((t, idx) => {
+                const item = document.createElement('div');
+                item.className = 'thumb-item';
+
+                // Remove button
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'remove-btn';
+                removeBtn.innerHTML = '<i class="fa fa-times"></i>';
+                removeBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    files.splice(idx, 1);
+                    if (thumbs[idx].url) URL.revokeObjectURL(thumbs[idx].url);
+                    if (thumbs[idx].compressedUrl) URL.revokeObjectURL(thumbs[idx].compressedUrl);
+                    thumbs.splice(idx, 1);
+                    renderThumbs(showCompressed);
+                    updateFilesSelected();
+                };
+                item.appendChild(removeBtn);
+
+                // Image
+                const img = document.createElement('img');
+                img.src = showCompressed && t.compressedUrl ? t.compressedUrl : t.url;
+                item.appendChild(img);
+
+                // Filename
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'thumb-filename';
+                nameDiv.textContent = t.name;
+                item.appendChild(nameDiv);
+
+                // Orig size
+                const origSizeDiv = document.createElement('div');
+                origSizeDiv.className = 'thumb-size';
+                origSizeDiv.textContent = 'До: ' + Math.round(t.origSize / 1024) + ' КБ';
+                item.appendChild(origSizeDiv);
+
+                // Compressed size
+                if (showCompressed && t.compressedSize) {
+                    const csizeDiv = document.createElement('div');
+                    csizeDiv.className = 'thumb-size compressed';
+                    csizeDiv.textContent = 'После: ' + Math.round(t.compressedSize / 1024) + ' КБ';
+                    item.appendChild(csizeDiv);
+                }
+
+                thumbsList.appendChild(item);
+            });
+            // Динамическая высота drop-area
+            dropArea.style.minHeight = (Math.ceil(thumbs.length / 6) * 180 + 100) + 'px';
+        }
+
+        // --- Прогресс-бар и счетчики ---
+        const progressSection = document.getElementById('progressSection');
+        const filesSelectedLabel = document.getElementById('filesSelectedLabel');
+        const filesProcessedLabel = document.getElementById('filesProcessedLabel');
+        const progressBarFill = document.getElementById('progressBarFill');
+
+        function updateProgressBar(selected, processed) {
+            filesSelectedLabel.textContent = `Wybrane pliki: ${selected}`;
+            filesProcessedLabel.textContent = `Przetworzono: ${processed}`;
+            let percent = selected === 0 ? 0 : Math.round((processed / selected) * 100);
+            progressBarFill.style.width = percent + '%';
+        }
+
+        // --- Drag & Drop --- (добавляем обновление счетчика)
+        function updateFilesSelected() {
+            filesSelectedLabel.textContent = `Wybrane pliki: ${files.length}`;
+            filesProcessedLabel.textContent = `Przetworzono: 0`;
+            progressBarFill.style.width = '0%';
+            if (files.length > 0) {
+                progressSection.style.display = '';
+            } else {
+                progressSection.style.display = 'none';
+            }
+        }
+
+        dropArea.addEventListener('click', () => fileInput.click());
+
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.classList.add('dragover');
+        });
+        dropArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('dragover');
+        });
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('dragover');
+            let dropped = Array.from(e.dataTransfer.files).filter(f => /image\/(jpeg|png)/.test(f.type));
+            for (let f of dropped) {
+                files.push(f);
+                thumbs.push({
+                    file: f,
+                    url: URL.createObjectURL(f),
+                    name: f.name,
+                    origSize: f.size
+                });
+            }
+            renderThumbs();
+            updateFilesSelected();
+        });
+        fileInput.addEventListener('change', (e) => {
+            let selected = Array.from(fileInput.files);
+            for (let f of selected) {
+                files.push(f);
+                thumbs.push({
+                    file: f,
+                    url: URL.createObjectURL(f),
+                    name: f.name,
+                    origSize: f.size
+                });
+            }
+            renderThumbs();
+            updateFilesSelected();
+        });
+
+        // --- Compress --- (добавляем прогресс)
+        compressBtn.addEventListener('click', async () => {
+            if (!files.length) return;
+            compressBtn.disabled = true;
+            compressBtn.textContent = 'Chwila...';
+            downloadBtn.style.display = 'none';
+            let maxPx = parseInt(maxPxSelect.value, 10);
+            let maxKB = parseInt(maxKbSelect.value, 10);
+
+            // Показываем прогресс-бар
+            progressSection.style.display = '';
+            updateProgressBar(files.length, 0);
+
+            for (let i = 0; i < files.length; ++i) {
+                let res = await compressToTarget(files[i], maxPx, maxKB);
+                if (thumbs[i].compressedUrl) URL.revokeObjectURL(thumbs[i].compressedUrl);
+                thumbs[i].compressedUrl = res.url;
+                thumbs[i].compressedSize = res.size;
+                thumbs[i].compressedBlob = res.blob;
+                updateProgressBar(files.length, i + 1);
+            }
+            renderThumbs(true);
+            compressBtn.disabled = false;
+            compressBtn.textContent = 'Skompresuj';
+            downloadBtn.style.display = '';
+        });
+
+        // --- Download ---
+        downloadBtn.addEventListener('click', async () => {
+            const compressed = thumbs.filter(t => t.compressedBlob);
+            if (!compressed.length) return;
+            if (compressed.length === 1) {
+                // Одиночный файл
+                const t = compressed[0];
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(t.compressedBlob);
+                let ext = '.jpg';
+                let base = t.name.replace(/\.[^.]+$/, '');
+                a.download = base + '_compressed' + ext;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    URL.revokeObjectURL(a.href);
+                    document.body.removeChild(a);
+                }, 200);
+            } else {
+                // ZIP
+                const zip = new JSZip();
+                compressed.forEach(t => {
+                    let ext = '.jpg';
+                    let base = t.name.replace(/\.[^.]+$/, '');
+                    zip.file(base + '_compressed' + ext, t.compressedBlob);
+                });
+                downloadBtn.disabled = true;
+                downloadBtn.textContent = 'Создаём ZIP...';
+                const content = await zip.generateAsync({type: "blob"});
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(content);
+                a.download = 'compressed_images.zip';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    URL.revokeObjectURL(a.href);
+                    document.body.removeChild(a);
+                    downloadBtn.disabled = false;
+                    downloadBtn.textContent = 'Скачать';
+                }, 400);
+            }
+        });
+
+        // --- Init ---
+        renderThumbs();
+        updateFilesSelected();
+    </script>
+</body>
+</html>
