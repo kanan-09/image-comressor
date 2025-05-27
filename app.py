@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 from PIL import Image
 from io import BytesIO
 
-app = Flask("CEJS")
+app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'compressed'
 ZIP_NAME = 'compressed_images.zip'

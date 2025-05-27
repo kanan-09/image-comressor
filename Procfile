@@ -1,1 +1,1 @@
-web: gunicorn CEJS:app
+web: gunicorn app:app
